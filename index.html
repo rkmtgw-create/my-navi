@@ -1,0 +1,104 @@
+# my-navi
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>おまかせナビ</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 20px; background: #f3f4f6; color: #333; }
+        .card { background: white; padding: 30px; border-radius: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 400px; margin: 40px auto; }
+        h2 { margin-top: 0; font-size: 22px; }
+        button { background: #007aff; color: white; border: none; padding: 16px 32px; font-size: 18px; border-radius: 14px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s; }
+        button:active { background: #0056b3; }
+        .status { margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 12px; font-size: 15px; }
+        .result-box { font-size: 20px; font-weight: bold; margin: 25px 0; color: #ff9500; min-height: 50px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>📍 目的地: 渋谷駅</h2>
+    
+    <div class="status" id="weather-status">⏳ 現在地の天気を読み込み中...</div>
+    
+    <div class="result-box" id="result-text">計算中...</div>
+    
+    <button onclick="startNavigation()">ナビを開始（GoogleMap）</button>
+</div>
+
+<script>
+// 【設定】あなたの目的地（駅名や住所、施設名など何でもOK）
+const DESTINATION = "渋谷駅"; 
+
+let isRainy = false;
+
+// 位置情報から天気を自動取得する関数
+function UrbanNaviInit() {
+    if (!navigator.geolocation) {
+        updateUI(false, "位置情報が使えません");
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        
+        try {
+            // 無料の天気APIを使って現在地の天気をリアルタイム取得
+            const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+            const data = await response.json();
+            const weatherCode = data.current_weather.weathercode;
+            
+            // Open-Meteoの天候コード: 51以上は雨や雪
+            isRainy = weatherCode >= 51;
+            updateUI(true);
+        } catch (error) {
+            updateUI(false, "天気データの取得に失敗");
+        }
+    }, () => {
+        updateUI(false, "位置情報の許可が必要です");
+    });
+}
+
+// 画面の表示を天気に合わせて書き換える
+function updateUI(success, errorMsg = "") {
+    const weatherEl = document.getElementById("weather-status");
+    const resultEl = document.getElementById("result-text");
+    
+    if (!success) {
+        weatherEl.innerText = `⚠️ ${errorMsg}`;
+        resultEl.innerText = "通常スケジュールで出発してください";
+        return;
+    }
+
+    if (isRainy) {
+        weatherEl.innerHTML = "🌧️ <b>天候: 雨 / 雪</b><br>歩行速度低下を検知（1.3倍スロー）";
+        resultEl.innerText = "【大雨モード】いつもより10〜15分早く家を出てください！";
+    } else {
+        weatherEl.innerHTML = "☀️ <b>天候: 晴れ / 曇り</b><br>歩行速度: 通常通り";
+        resultEl.innerText = "遅延なし。通常通りに出発してOKです！";
+    }
+}
+
+// ボタンを押した時の処理
+function startNavigation() {
+    let googleMapUrl = "";
+    
+    if (isRainy) {
+        // 雨の日は、少しでも歩く距離を減らすため、自動的に「公共交通機関（transit）」モードを強制指定して開く
+        googleMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(DESTINATION)}&travelmode=transit`;
+    } else {
+        // 晴れの日は通常のナビ
+        googleMapUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(DESTINATION)}`;
+    }
+    
+    window.location.href = googleMapUrl;
+}
+
+// 起動時に自動実行
+ UrbanNaviInit();
+</script>
+
+</body>
+</html>
